@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2023 VMware, Inc.
+ * Copyright (c) 2023, 2024 VMware, Inc.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -13,7 +13,12 @@ package org.springframework.ide.vscode.boot.validation.generations;
 import java.util.Collection;
 import java.util.List;
 
+import org.eclipse.lsp4j.CodeAction;
+import org.eclipse.lsp4j.CodeActionKind;
+import org.eclipse.lsp4j.Command;
 import org.eclipse.lsp4j.Diagnostic;
+import org.eclipse.lsp4j.Range;
+import org.eclipse.lsp4j.ShowDocumentParams;
 import org.springframework.ide.vscode.boot.validation.generations.json.Generation;
 import org.springframework.ide.vscode.boot.validation.generations.json.ResolvedSpringProject;
 import org.springframework.ide.vscode.boot.validation.generations.preferences.VersionValidationProblemType;
@@ -26,6 +31,8 @@ import com.google.common.collect.ImmutableList;
 
 public class GenerationsValidator extends AbstractDiagnosticValidator {
 	
+	private static String SPRING_COMMERCIAL_URL = "https://tanzu.vmware.com/spring-runtime";
+	
 	private SpringProjectsProvider provider;
 
 	public GenerationsValidator(DiagnosticSeverityProvider diagnosticSeverityProvider, SpringProjectsProvider provider) {
@@ -33,7 +40,7 @@ public class GenerationsValidator extends AbstractDiagnosticValidator {
 		this.provider = provider;
 	}
 	
-	private static Generation getGenerationForJavaProject(IJavaProject javaProject, ResolvedSpringProject springProject)
+	public static Generation getGenerationForJavaProject(IJavaProject javaProject, ResolvedSpringProject springProject)
 			throws Exception {
 		List<Generation> genList = springProject.getGenerations();
 		Version javaProjectVersion = SpringProjectUtil.getDependencyVersion(javaProject, springProject.getSlug());
@@ -55,6 +62,9 @@ public class GenerationsValidator extends AbstractDiagnosticValidator {
 		Generation javaProjectGen = getGenerationForJavaProject(javaProject, springProject);
 		ImmutableList.Builder<Diagnostic> b = ImmutableList.builder();
 		
+		boolean validCommercialSupport = VersionValidationUtils.isCommercialValid(javaProjectGen);
+
+		
 		if (VersionValidationUtils.isOssValid(javaProjectGen)) {
 			StringBuilder message = new StringBuilder();
 			message.append("OSS support for Spring Boot ");
@@ -73,16 +83,24 @@ public class GenerationsValidator extends AbstractDiagnosticValidator {
 				message.append(" not available!");
 			} else {
 				message.append(javaProjectGen.getName());
-				message.append(" no longer available, ended on: ");
+				message.append(" ended on ");
 				message.append(javaProjectGen.getOssSupportEndDate());
+				if (validCommercialSupport) {
+					message.append(", get commercial support until ");
+					message.append(javaProjectGen.getCommercialSupportEndDate());
+					message.append(" via Tanzu Spring Runtime at https://tanzu.vmware.com/spring-runtime");
+				}
 			}
 			Diagnostic d = createDiagnostic(VersionValidationProblemType.UNSUPPORTED_OSS_VERSION, message.toString());
+			if (validCommercialSupport) {
+				d.setData(List.of(getCommercialSupportCodeAction()));
+			}
 			if (d != null) {
 				b.add(d);
 			}
 		}
 
-		if (VersionValidationUtils.isCommercialValid(javaProjectGen)) {
+		if (validCommercialSupport) {
 			StringBuilder message = new StringBuilder();
 			message.append("Commercial support for Spring Boot ");
 			message.append(javaProjectGen.getName());
@@ -100,7 +118,7 @@ public class GenerationsValidator extends AbstractDiagnosticValidator {
 				message.append(" not available!");
 			} else {
 				message.append(javaProjectGen.getName());
-				message.append(" no longer available, ended on: ");
+				message.append(" ended on ");
 				message.append(javaProjectGen.getCommercialSupportEndDate());
 			}
 			Diagnostic d = createDiagnostic(VersionValidationProblemType.UNSUPPORTED_COMMERCIAL_VERSION, message.toString());
@@ -121,5 +139,19 @@ public class GenerationsValidator extends AbstractDiagnosticValidator {
 				VersionValidationProblemType.UNSUPPORTED_COMMERCIAL_VERSION
 		);
 	}
+	
+	private static CodeAction getCommercialSupportCodeAction() {
+		CodeAction commercialSupportLink = new CodeAction();
+		commercialSupportLink.setKind(CodeActionKind.QuickFix);
+		commercialSupportLink.setTitle("Get commercial Spring Boot support via Tanzu Spring Runtime");
+		ShowDocumentParams showDocumentParams = new ShowDocumentParams(SPRING_COMMERCIAL_URL);
+		showDocumentParams.setExternal(true);
+		showDocumentParams.setTakeFocus(true);
+		showDocumentParams.setSelection(new Range());
+		commercialSupportLink.setCommand(new Command("Get commercial Spring Boot support via Tanzu Spring Runtime", "sts/show/document",
+				ImmutableList.of(showDocumentParams)));
+		return commercialSupportLink;
+	}
+
 
 }

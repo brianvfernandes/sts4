@@ -172,7 +172,7 @@ public class RewriteRecipeRepository {
 					recipes.put(r.getName(), r);					
 					// HACK: add Jakarta XML Bind migration recipe again as there are cases when maven dependency isn't added
 					if (r.getName().startsWith("org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_")) {
-						AddDependency addDepXmlBindDep = new AddDependency("jakarta.xml.bind", "jakarta.xml.bind-api", "latest.release", null, null, null, "javax.xml.bind..*", null, null, null, null, true);
+						AddDependency addDepXmlBindDep = new AddDependency("jakarta.xml.bind", "jakarta.xml.bind-api", "latest.release", null, null, null, "javax.xml.bind..*", null, null, null, null, false);
 						r.getDescriptor().getRecipeList().add(addDepXmlBindDep.getDescriptor());
 						r.getRecipeList().add(addDepXmlBindDep);
 					}
@@ -423,13 +423,12 @@ public class RewriteRecipeRepository {
 		String changeAnnotationId = UUID.randomUUID().toString();
 		Optional<WorkspaceEdit> we = computeWorkspaceEdit(r, sources, progressTask, changeAnnotationId);
 		if (we.isPresent()) {
-			CompletableFuture<WorkspaceEdit> editFuture = askForPreview ? askForPreview(we.get(), changeAnnotationId) : CompletableFuture.completedFuture(we.get());
-			return editFuture.thenApply(Optional::of);
+			return askForPreview ? askForPreview(we.get(), changeAnnotationId) : CompletableFuture.completedFuture(we);
 		}
 		return CompletableFuture.completedFuture(Optional.empty());
 	}
 	
-	private CompletableFuture<WorkspaceEdit> askForPreview(WorkspaceEdit workspaceEdit, String changeAnnotationId) {
+	private CompletableFuture<Optional<WorkspaceEdit>> askForPreview(WorkspaceEdit workspaceEdit, String changeAnnotationId) {
 		return server.getClientCapabilities().thenApply(capabilities -> {
 			WorkspaceEditChangeAnnotationSupportCapabilities changeAnnotationSupport = capabilities.getWorkspace().getWorkspaceEdit().getChangeAnnotationSupport();
 			return changeAnnotationSupport != null && changeAnnotationSupport.getGroupsOnLabel() != null && changeAnnotationSupport.getGroupsOnLabel().booleanValue();
@@ -439,17 +438,25 @@ public class RewriteRecipeRepository {
 				final MessageActionItem applyChanges = new MessageActionItem("Apply");
 				ShowMessageRequestParams messageParams = new ShowMessageRequestParams();
 				messageParams.setType(MessageType.Info);
-				messageParams.setMessage("Do you want to preview chnages before applying or apply right away?");
+				messageParams.setMessage("Do you want to preview changes before applying or apply right away?");
 				messageParams.setActions(List.of(applyChanges, previewChanges));
-				return server.getClient().showMessageRequest(messageParams).thenApply(previewChanges::equals);
+				return server.getClient().showMessageRequest(messageParams).thenApply(ma -> {
+					if (previewChanges.equals(ma) ) {
+						return Optional.of(true);
+					} else if (applyChanges.equals(ma)) {
+						return Optional.of(false);
+					} else {
+						return Optional.<Boolean>empty();
+					}
+				});
 			} else {
-				return CompletableFuture.completedFuture(false);
+				return CompletableFuture.completedFuture(Optional.of(false));
 			}
-		}).thenApply(needsConfirmation -> {
+		}).thenApply(optNeedsConfirmation -> optNeedsConfirmation.map(needsConfirmation -> {
 				ChangeAnnotation changeAnnotation = workspaceEdit.getChangeAnnotations().get(changeAnnotationId);
 				changeAnnotation.setNeedsConfirmation(needsConfirmation);
 				return workspaceEdit;
-		});
+		}));
 	}
 	
 	private CompletableFuture<Object> applyEdit(Optional<WorkspaceEdit> we, IndefiniteProgressTask progressTask, String title) {

@@ -1,7 +1,15 @@
-import { CancellationToken, DebugConfiguration, DebugConfigurationProvider, ProviderResult, WorkspaceFolder } from "vscode";
+import { debug,
+    commands,
+    CancellationToken,
+    DebugConfiguration,
+    DebugConfigurationProvider,
+    WorkspaceFolder,
+    DebugConfigurationProviderTriggerKind,
+    DebugSessionCustomEvent,
+    Disposable,
+    ProviderResult
+} from "vscode";
 import * as path from "path";
-import * as VSCode from "vscode";
-import { Disposable } from "vscode";
 import psList from 'ps-list';
 import { ListenablePreferenceSetting } from "@pivotal-tools/commons-vscode/lib/launch-util";
 
@@ -11,14 +19,21 @@ const ADMIN_VM_ARG = '-Dspring.application.admin.enabled='
 const BOOT_PROJECT_ARG = '-Dspring.boot.project.name=';
 const RMI_HOSTNAME = '-Djava.rmi.server.hostname=localhost';
 
-const TEST_RUNNER_MAIN_CLASSES = [
+export const TEST_RUNNER_MAIN_CLASSES = [
     'org.eclipse.jdt.internal.junit.runner.RemoteTestRunner',
     'com.microsoft.java.test.runner.Launcher'
 ];
 
+interface ProcessEvent {
+    type: string;
+    processId: number;
+    shellProcessId: number
+}
+
 class SpringBootDebugConfigProvider implements DebugConfigurationProvider {
 
     resolveDebugConfigurationWithSubstitutedVariables(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration> {
+        // Running app live hovers support
         if (!TEST_RUNNER_MAIN_CLASSES.includes(debugConfiguration.mainClass) && isActuatorOnClasspath(debugConfiguration)) {
             if (debugConfiguration.vmArgs) {
                 if (debugConfiguration.vmArgs.indexOf(JMX_VM_ARG) < 0) {
@@ -45,13 +60,7 @@ class SpringBootDebugConfigProvider implements DebugConfigurationProvider {
 
 }
 
-interface ProcessEvent {
-    type: string;
-    processId: number;
-    shellProcessId: number
-}
-
-function hookListenerToBooleanPreference(setting: string, listenerCreator: () => Disposable): Disposable {
+export function hookListenerToBooleanPreference(setting: string, listenerCreator: () => Disposable): Disposable {
     const listenableSetting =  new ListenablePreferenceSetting<boolean>(setting);
     let listener: Disposable | undefined = listenableSetting.value ? listenerCreator() : undefined;
     listenableSetting.onDidChangeValue(() => {
@@ -79,22 +88,22 @@ function hookListenerToBooleanPreference(setting: string, listenerCreator: () =>
 
 export function startDebugSupport(): Disposable {
     return hookListenerToBooleanPreference(
-            'boot-java.live-information.automatic-connection.on',
-             () => Disposable.from(
-                 VSCode.debug.onDidReceiveDebugSessionCustomEvent(handleCustomDebugEvent),
-                 VSCode.debug.registerDebugConfigurationProvider('java', new SpringBootDebugConfigProvider(), VSCode.DebugConfigurationProviderTriggerKind.Initial)
-             )
+        'boot-java.live-information.automatic-connection.on',
+         () => Disposable.from(
+             debug.onDidReceiveDebugSessionCustomEvent(handleCustomDebugEvent),
+             debug.registerDebugConfigurationProvider('java', new SpringBootDebugConfigProvider(), DebugConfigurationProviderTriggerKind.Initial)
+         )
     );
 }
 
-async function handleCustomDebugEvent(e: VSCode.DebugSessionCustomEvent): Promise<void> {
+async function handleCustomDebugEvent(e: DebugSessionCustomEvent): Promise<void> {
     if (e.session?.type === 'java' && e?.body?.type === 'processid') {
         const debugConfiguration: DebugConfiguration = e.session.configuration;
         if (canConnect(debugConfiguration)) {
             setTimeout(async () => {
                 const pid = await getAppPid(e.body as ProcessEvent);
                 const processKey = pid.toString();
-                VSCode.commands.executeCommand('sts/livedata/connect', { processKey });
+                commands.executeCommand('sts/livedata/connect', { processKey });
             }, 500);
         }
     }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?pde version="3.5"?>
-<product name="Spring Tool Suite 4" id="org.springframework.boot.ide.branding.sts4" uid="org.springframework.boot.ide.branding.sts4" application="org.eclipse.ui.ide.workbench" version="4.22.0.qualifier" useFeatures="true" includeLaunchers="true">
+<product name="Spring Tool Suite 4" id="org.springframework.boot.ide.branding.sts4" uid="org.springframework.boot.ide.branding.sts4" application="org.eclipse.ui.ide.workbench" version="4.22.1.qualifier" useFeatures="true" includeLaunchers="true">
 
    <configIni use="default">
    </configIni>
@@ -69,7 +69,7 @@
 
       <feature id="org.eclipse.m2e.feature" installMode="root"/>
       <feature id="org.eclipse.m2e.lemminx.feature" installMode="root"/>
-      <feature id="org.eclipse.m2e.logback.feature" installMode="root"/>
+<!--      <feature id="org.eclipse.m2e.logback.feature" installMode="root"/> -->
       <feature id="org.eclipse.m2e.wtp.feature" installMode="root"/>
 <!--      <feature id="org.eclipse.m2e.wtp.jaxrs.feature" installMode="root"/> -->
 <!--      <feature id="org.eclipse.m2e.wtp.jsf.feature" installMode="root"/> -->

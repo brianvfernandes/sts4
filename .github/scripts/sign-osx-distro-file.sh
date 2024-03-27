@@ -48,11 +48,6 @@ do
   codesign --verbose --deep --force --timestamp --entitlements "${entitlements}" --options=runtime --keychain "${KEYCHAIN}" -s "${MACOS_CERTIFICATE_ID}" $f
 done
 
-# These end being inside osx distro tar.gz file built on Linux
-rm -rf ${dir}/${destination_folder_name}/SpringToolSuite4.app/plugins
-rm -rf ${dir}/${destination_folder_name}/SpringToolSuite4.app/p2
-rm -f ${dir}/${destination_folder_name}/SpringToolSuite4.app/artifacts.xml
-
 # Sign the app
 ls -la ${dir}/${destination_folder_name}/SpringToolSuite4.app/
 codesign --verbose --deep --force --timestamp --entitlements "${entitlements}" --options=runtime --keychain "${KEYCHAIN}" -s "${MACOS_CERTIFICATE_ID}" ${dir}/${destination_folder_name}/SpringToolSuite4.app
@@ -71,7 +66,7 @@ echo '  "format": "UDZO"' >> dmg-config.json
 echo '}' >> dmg-config.json
 cat ./dmg-config.json
 dmg_filename=${filename%.*.*}.dmg
-aboyko-appdmg ./dmg-config.json ../${dmg_filename}
+appdmg ./dmg-config.json ../${dmg_filename}
 
 cd ..
 rm -rf ./${destination_folder_name}

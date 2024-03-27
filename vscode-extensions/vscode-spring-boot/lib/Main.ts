@@ -1,8 +1,13 @@
 'use strict';
 
 import * as OS from "os";
-import * as VSCode from 'vscode';
-import { workspace } from 'vscode';
+import {
+    commands,
+    window,
+    workspace,
+    ExtensionContext,
+    Uri
+ } from 'vscode';
 
 import * as commons from '@pivotal-tools/commons-vscode';
 import * as liveHoverUi from './live-hover-connect-ui';
@@ -14,6 +19,7 @@ import { ExtensionAPI } from "./api";
 import {registerClasspathService} from "@pivotal-tools/commons-vscode/lib/classpath";
 import {registerJavaDataService} from "@pivotal-tools/commons-vscode/lib/java-data";
 import * as setLogLevelUi from './set-log-levels-ui';
+import { startTestJarSupport } from "./test-jar-launch";
 
 const PROPERTIES_LANGUAGE_ID = "spring-boot-properties";
 const YAML_LANGUAGE_ID = "spring-boot-properties-yaml";
@@ -24,7 +30,7 @@ const FACTORIES_LANGUAGE_ID = "spring-factories";
 const STOP_ASKING = "Stop Asking";
 
 /** Called when extension is activated */
-export function activate(context: VSCode.ExtensionContext): Thenable<ExtensionAPI> {
+export function activate(context: ExtensionContext): Thenable<ExtensionAPI> {
 
     // registerPipelineGenerator(context);
     let options : commons.ActivatorOptions = {
@@ -34,16 +40,15 @@ export function activate(context: VSCode.ExtensionContext): Thenable<ExtensionAP
         preferJdk: true,
         jvmHeap: '1024m',
         vmArgs: [
-            '-XX:+HeapDumpOnOutOfMemoryError'
         ],
-        checkjvm: (context: VSCode.ExtensionContext, jvm: commons.JVM) => {
+        checkjvm: (context: ExtensionContext, jvm: commons.JVM) => {
             let version = jvm.getMajorVersion();
             if (version < 17) {
                 throw Error(`Spring Tools Language Server requires Java 17 or higher to be launched. Current Java version is ${version}`);
             }
 
             if (!jvm.isJdk()) {
-                VSCode.window.showWarningMessage(
+                window.showWarningMessage(
                     'JAVA_HOME or PATH environment variable seems to point to a JRE. A JDK is required, hence Boot Hints are unavailable.',
                     STOP_ASKING).then(selection => {
                         if (selection === STOP_ASKING) {
@@ -58,7 +63,7 @@ export function activate(context: VSCode.ExtensionContext): Thenable<ExtensionAP
             mainClass: 'org.springframework.ide.vscode.boot.app.BootLanguageServerBootApp',
             configFileName: 'application.properties'
         },
-        workspaceOptions: VSCode.workspace.getConfiguration("spring-boot.ls"),
+        workspaceOptions: workspace.getConfiguration("spring-boot.ls"),
         clientOptions: {
             markdown: {
                 isTrusted: true
@@ -88,7 +93,7 @@ export function activate(context: VSCode.ExtensionContext): Thenable<ExtensionAP
                     }
                     return uri.toString();
                 },
-                protocol2Code: uri => VSCode.Uri.parse(uri)
+                protocol2Code: uri => Uri.parse(uri)
             },
             // See PT-158992999 as to why a scheme is added to the document selector
             // documentSelector: [ PROPERTIES_LANGUAGE_ID, YAML_LANGUAGE_ID, JAVA_LANGUAGE_ID ],
@@ -136,31 +141,41 @@ export function activate(context: VSCode.ExtensionContext): Thenable<ExtensionAP
     context.subscriptions.push(startDebugSupport());
 
     return commons.activate(options, context).then(client => {
-        VSCode.commands.registerCommand('vscode-spring-boot.ls.start', () => client.start().then(() => {
+        commands.registerCommand('vscode-spring-boot.ls.start', () => client.start().then(() => {
             // Boot LS is fully started
             registerClasspathService(client);
             registerJavaDataService(client);
 
             // Force classpath listener to be enabled. Boot LS can only be launched iff classpath is available and there Spring-Boot on the classpath somewhere.
-            VSCode.commands.executeCommand('sts.vscode-spring-boot.enableClasspathListening', true);
+            commands.executeCommand('sts.vscode-spring-boot.enableClasspathListening', true);
+
+            // Register TestJars launch support
+            context.subscriptions.push(startTestJarSupport());
+
         }));
-        VSCode.commands.registerCommand('vscode-spring-boot.ls.stop', () => client.stop());
+        commands.registerCommand('vscode-spring-boot.ls.stop', () => client.stop());
         liveHoverUi.activate(client, options, context);
         rewrite.activate(client, options, context);
         setLogLevelUi.activate(client, options, context);
 
-        VSCode.commands.registerCommand('vscode-spring-boot.spring.modulith.metadata.refresh', async () => {
-            const modulithProjects = await VSCode.commands.executeCommand('sts/modulith/projects');
+        commands.registerCommand('vscode-spring-boot.spring.modulith.metadata.refresh', async () => {
+            const modulithProjects = await commands.executeCommand('sts/modulith/projects');
             const projectNames = Object.keys(modulithProjects);
             if (projectNames.length === 0) {
-                VSCode.window.showErrorMessage('No Spring Modulith projects found');
+                window.showErrorMessage('No Spring Modulith projects found');
             } else {
-                const projectName = projectNames.length === 1 ? projectNames[0] : await VSCode.window.showQuickPick(
+                const projectName = projectNames.length === 1 ? projectNames[0] : await window.showQuickPick(
                     projectNames,
                     { placeHolder: "Select the target project." },
                 );
-                VSCode.commands.executeCommand('sts/modulith/metadata/refresh', modulithProjects[projectName]);
+                commands.executeCommand('sts/modulith/metadata/refresh', modulithProjects[projectName]);
             }
+        });
+
+        commands.registerCommand('vscode-spring-boot.open.url', (openUrl) => {
+            const openWithExternalBrowser = workspace.getConfiguration("spring.tools").get("openWith") === "external";
+            const browserCommand = openWithExternalBrowser ? "vscode.open" : "simpleBrowser.api.open";
+            return commands.executeCommand(browserCommand, Uri.parse(openUrl));
         });
 
         return new ApiManager(client).api;

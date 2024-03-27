@@ -3,7 +3,7 @@
   "displayName": "Spring Boot Tools",
   "description": "Provides validation and content assist for Spring Boot `application.properties`, `application.yml` properties files. As well as Boot-specific support for `.java` files.",
   "icon": "spring-boot-logo.png",
-  "version": "1.53.0",
+  "version": "1.54.0",
   "publisher": "vmware",
   "repository": {
     "type": "git",
@@ -134,6 +134,12 @@
         "command": "vscode-spring-boot.set.log-levels",
         "title": "Set Log Levels",
         "category": "Spring Boot"
+      },
+      {
+        "command": "vscode-spring-boot.open.url",
+        "title": "Open Boot App Page URL",
+        "category": "Spring Boot",
+        "enablement": "never"
       }
     ],
     "configuration": [
@@ -228,6 +234,30 @@
               ]
             },
             "description": "Array of jmx urls pointing to remote spring boot applications to poll for live hover information. A typical url looks something like this: `service:jmx:rmi://localhost:9111/jndi/rmi://localhost:9111/jmxrmi`"
+          },
+          "boot-java.modulith-project-tracking": {
+            "type": "boolean",
+            "default": true,
+            "description": "Spring Boot Modulith automatic project tracking and metadata update"
+          },
+          "boot-java-vscode-only.test-jars": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable/Disable Spring Boot TestJars launch environment variables"
+          },
+          "spring.tools.openWith": {
+            "default": "integrated",
+            "type": "string",
+            "enum": [
+              "integrated",
+              "external"
+            ],
+            "enumDescriptions": [
+              "VS Code's integrated browser",
+              "External default browser"
+            ],
+            "scope": "window",
+            "description": "Defines which browser to use when opening Spring Boot apps web pages."
           }
         }
       },
@@ -245,8 +275,7 @@
             "type": "array",
             "default": [
               "org.openrewrite.java.spring.boot2.SpringBoot2JUnit4to5Migration",
-              "org.openrewrite.java.spring.boot2.SpringBoot2BestPractices",
-              "org.openrewrite.java.spring.boot2.SpringBoot1To2Migration",
+              "org.openrewrite.java.spring.boot3.SpringBoot3BestPractices",
               "org.openrewrite.java.testing.junit5.JUnit5BestPractices",
               "org.openrewrite.java.testing.junit5.JUnit4to5Migration",
               "org.openrewrite.java.spring.boot2.UpgradeSpringBoot_2_7",
@@ -924,7 +953,7 @@
           },
           "spring-boot.ls.problem.version-validation.UNSUPPORTED_OSS_VERSION": {
             "type": "string",
-            "default": "HINT",
+            "default": "WARNING",
             "description": "Unsupported OSS Version",
             "enum": [
               "IGNORE",
@@ -936,7 +965,7 @@
           },
           "spring-boot.ls.problem.version-validation.UNSUPPORTED_COMMERCIAL_VERSION": {
             "type": "string",
-            "default": "HINT",
+            "default": "WARNING",
             "description": "Unsupported Commercial Version",
             "enum": [
               "IGNORE",

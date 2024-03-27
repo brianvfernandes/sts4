@@ -42,11 +42,16 @@ import java.util.function.Predicate;
 import org.eclipse.compare.CompareConfiguration;
 import org.eclipse.compare.CompareEditorInput;
 import org.eclipse.compare.CompareUI;
+import org.eclipse.compare.CompareViewerPane;
 import org.eclipse.compare.CompareViewerSwitchingPane;
 import org.eclipse.compare.IStreamContentAccessor;
 import org.eclipse.compare.ITypedElement;
+import org.eclipse.compare.Splitter;
+import org.eclipse.compare.contentmergeviewer.ContentMergeViewer;
 import org.eclipse.compare.contentmergeviewer.TextMergeViewer;
+import org.eclipse.compare.internal.AbstractViewer;
 import org.eclipse.compare.internal.BufferedResourceNode;
+import org.eclipse.compare.internal.CompareContentViewerSwitchingPane;
 import org.eclipse.compare.internal.CompareMessages;
 import org.eclipse.compare.internal.CompareUIPlugin;
 import org.eclipse.compare.internal.IMergeViewerTestAdapter;
@@ -684,12 +689,17 @@ public class ResourceCompareInput extends CompareEditorInput {
 									Shell shell = new Shell();
 									shell.setVisible(false);
 									// Content difference
-									TextMergeViewer contentViewer = (TextMergeViewer) CompareUI.findContentViewer(new NullViewer(shell),
+									ContentMergeViewer contentViewer = (ContentMergeViewer) CompareUI.findContentViewer(new NullViewer(shell),
 											n, shell, getCompareConfiguration());
 									if (contentViewer != null) {
 										contentViewer.setInput(n);
 										try {
-											Method method = TextMergeViewer.class.getDeclaredMethod("copy", boolean.class);
+											Method method;
+											try {
+												method = contentViewer.getClass().getDeclaredMethod("copy", boolean.class);
+											} catch (Exception e) {
+												method = TextMergeViewer.class.getDeclaredMethod("copy", boolean.class);
+											}
 											method.setAccessible(true);
 											method.invoke(contentViewer, true);
 											contentViewer.flush(new NullProgressMonitor());
@@ -729,6 +739,48 @@ public class ResourceCompareInput extends CompareEditorInput {
 			Log.log(e);
 			return null;
 		}
+	}
+
+	class CustomNullViewer extends AbstractViewer {
+
+		private final Control fDummy;
+		private final Composite parent;
+		private boolean firstSetInput = true;
+
+		public CustomNullViewer(Composite parent) {
+			this.parent = parent;
+			fDummy= new Tree(parent, SWT.NULL);
+
+		}
+
+		@Override
+		public void setInput(Object input) {
+			if (!parent.isDisposed() && firstSetInput) {
+				CompareViewerPane.clearToolBar(parent);
+			}
+			super.setInput(input);
+			firstSetInput = false;
+		}
+
+		@Override
+		public Control getControl() {
+			return fDummy;
+		}
+	}
+
+	@Override
+	protected CompareViewerSwitchingPane createContentViewerSwitchingPane(Splitter parent, int style, CompareEditorInput cei) {
+		return new CompareContentViewerSwitchingPane(parent, style, cei) {
+			@Override
+			protected Viewer getViewer(Viewer oldViewer, Object input) {
+				if (input instanceof MyDiffNode n) {
+					if (ITypedElement.FOLDER_TYPE.equals(n.getId().getType())) {
+						return new CustomNullViewer(this);
+					}
+				}
+				return super.getViewer(oldViewer, input);
+			}
+		};
 	}
 
 	@Override

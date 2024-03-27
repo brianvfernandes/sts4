@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2017 Pivotal, Inc.
+ * Copyright (c) 2017, 2024 Pivotal, Inc.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -15,6 +15,6 @@ import java.util.concurrent.CompletableFuture;
 import org.eclipse.lsp4j.ExecuteCommandParams;
 
 @FunctionalInterface
-public interface ExecuteCommandHandler {
-	CompletableFuture<Object> handle(ExecuteCommandParams params);
+public interface ExecuteCommandHandler<T> {
+	CompletableFuture<T> handle(ExecuteCommandParams params);
 }
